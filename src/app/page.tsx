@@ -1,15 +1,22 @@
 "use client";
 
-import { Physics, useBox, usePlane } from "@react-three/cannon";
+import {
+  BoxProps,
+  Physics,
+  PlaneProps,
+  Triplet,
+  useBox,
+  usePlane,
+} from "@react-three/cannon";
 import {
   Box,
   OrbitControls,
   PerspectiveCamera,
   Plane,
 } from "@react-three/drei";
-import { Canvas } from "@react-three/fiber";
+import { Canvas, MeshProps, useFrame } from "@react-three/fiber";
 import { FC, useRef } from "react";
-import { Mesh } from "three";
+import { Mesh, Vector3 } from "three";
 
 export default function Home() {
   return (
@@ -29,44 +36,80 @@ export default function Home() {
             makeDefault
             position={[5, 5, 5]}
           ></PerspectiveCamera>
-          <MyBox mass={1} position={[0, 0.5, 0]} scale={[1, 1, 1]}></MyBox>
-          <MyBox mass={1} position={[-0.5, 3, 0]} scale={[1, 1, 1]}></MyBox>
-          <MyPlane scale={[10, 10, 10]} position={[0, 0, 0]}></MyPlane>
+          <MyStaticBox
+            position={[1, 0.5, 1]}
+            args={[1, 1, 1]}
+            type="Static"
+          ></MyStaticBox>
+          <MyBox mass={1} position={[-1, 0.5, -1]} args={[1, 1, 1]}></MyBox>
+          <MyPlane
+            rotation={[-Math.PI / 2, 0, 0]}
+            scale={[10, 10, 10]}
+            position={[0, 0, 0]}
+          ></MyPlane>
         </Physics>
       </Canvas>
     </main>
   );
 }
 
-const MyBox: FC<{
-  mass: number;
-  position: [number, number, number];
-  scale: [number, number, number];
-}> = ({ mass, position, scale }) => {
-  const [ref] = useBox(
+type MyStaticBoxProps = Omit<BoxProps, "args" | "position" | "type"> & {
+  args: Exclude<BoxProps["args"], undefined>;
+  position: Exclude<BoxProps["position"], undefined>;
+  type: "Static";
+};
+
+const MyStaticBox: FC<MyStaticBoxProps> = ({ args, position, ...rest }) => {
+  const [ref, api] = useBox(
     () => ({
-      args: scale,
+      args,
       position,
-      mass,
+      ...rest,
     }),
     useRef<Mesh>(null)
   );
 
+  useFrame(({ clock }) => {
+    const t = clock.getElapsedTime();
+    const [xx, yy, zz] = position;
+    const length = Math.sqrt(xx * xx + zz * zz);
+    const x = length * Math.sin(t);
+    const y = yy;
+    const z = length * Math.cos(t);
+    api.position.set(x, y, z);
+  });
+
   return (
-    <Box ref={ref} scale={scale}>
+    <Box ref={ref} scale={args}>
       <meshStandardMaterial></meshStandardMaterial>
     </Box>
   );
 };
 
-const MyPlane: FC<{
-  position: [number, number, number];
-  scale: [number, number, number];
-}> = ({ position, scale }) => {
+type MyBoxProps = BoxProps;
+
+const MyBox: FC<MyBoxProps> = ({ args, ...rest }) => {
+  const [ref] = useBox(
+    () => ({
+      args,
+      ...rest,
+    }),
+    useRef<Mesh>(null)
+  );
+
+  return (
+    <Box ref={ref} scale={args}>
+      <meshStandardMaterial></meshStandardMaterial>
+    </Box>
+  );
+};
+
+type MyPlaneProps = PlaneProps & Pick<MeshProps, "scale">;
+
+const MyPlane: FC<MyPlaneProps> = ({ scale, ...rest }) => {
   const [ref] = usePlane(
     () => ({
-      rotation: [-Math.PI / 2, 0, 0],
-      args: scale,
+      ...rest,
     }),
     useRef<Mesh>(null)
   );
