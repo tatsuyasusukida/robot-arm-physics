@@ -1,122 +1,74 @@
 "use client";
 
-import {
-  BoxProps,
-  Physics,
-  PlaneProps,
-  Triplet,
-  useBox,
-  usePlane,
-} from "@react-three/cannon";
-import {
-  Box,
-  OrbitControls,
-  PerspectiveCamera,
-  Plane,
-} from "@react-three/drei";
-import { Canvas, MeshProps, useFrame } from "@react-three/fiber";
-import { FC, useRef } from "react";
-import { Mesh, Vector3 } from "three";
+import { Box, Cylinder, OrbitControls, Plane } from "@react-three/drei";
+import { Canvas } from "@react-three/fiber";
+import { ChangeEvent, useState } from "react";
 
 export default function Home() {
+  const [controller, setController] = useState({
+    positionX: 0,
+    positionZ: 0,
+    axis0: 0,
+  });
+
+  const onChange = (event: ChangeEvent<HTMLInputElement>) =>
+    setController({
+      ...controller,
+      [event.target.name]: parseInt(event.target.value, 10),
+    });
+
+  const rangeInput = (name: string, value: number, max: number) => (
+    <div className="mb-2 flex items-center">
+      <label htmlFor={name} className="mr-2">
+        {name}
+      </label>
+      <input
+        type="range"
+        id={name}
+        name={name}
+        max={max}
+        min={-max}
+        value={value}
+        onChange={onChange}
+      />
+    </div>
+  );
+
   return (
-    <main className="mx-auto container">
-      <h1 className="text-4xl mt-4 mb-4">Robot arm physics</h1>
+    <main className="container mx-auto">
+      <h1 className="text-4xl mt-4 mb-4">Robot arm game</h1>
+      <form className="mb-4">
+        {rangeInput("positionX", controller.positionX, 80)}
+        {rangeInput("positionZ", controller.positionZ, 80)}
+        {rangeInput("axis0", controller.axis0, 180)}
+      </form>
       <Canvas
         style={{
           width: "70%",
           height: "70vh",
         }}
+        camera={{
+          position: [50, 50, 50],
+        }}
       >
-        <Physics>
-          <OrbitControls></OrbitControls>
-          <ambientLight intensity={0.2}></ambientLight>
-          <pointLight position={[5, 10, 5]} intensity={0.6}></pointLight>
-          <PerspectiveCamera
-            makeDefault
-            position={[5, 5, 5]}
-          ></PerspectiveCamera>
-          <MyStaticBox
-            position={[1, 0.5, 1]}
-            args={[1, 1, 1]}
-            type="Static"
-          ></MyStaticBox>
-          <MyBox mass={1} position={[-1, 0.5, -1]} args={[1, 1, 1]}></MyBox>
-          <MyPlane
-            rotation={[-Math.PI / 2, 0, 0]}
-            scale={[10, 10, 10]}
-            position={[0, 0, 0]}
-          ></MyPlane>
-        </Physics>
+        <pointLight position={[100, 200, 100]} intensity={0.8}></pointLight>
+        <ambientLight intensity={0.1}></ambientLight>
+        <OrbitControls></OrbitControls>
+        <group
+          position={[controller.positionX, 0, controller.positionZ]}
+          rotation={[0, (controller.axis0 * Math.PI) / 180, 0]}
+        >
+          <Cylinder args={[10, 10, 20, 12]} position={[0, 10, 0]}>
+            <meshStandardMaterial></meshStandardMaterial>
+          </Cylinder>
+          <Box args={[20, 4, 10]} position={[15, 11, 0]}>
+            <meshStandardMaterial></meshStandardMaterial>
+          </Box>
+        </group>
+        <Plane args={[200, 200]} rotation={[-Math.PI / 2, 0, 0]}>
+          <meshStandardMaterial color={"#888"}></meshStandardMaterial>
+        </Plane>
       </Canvas>
     </main>
   );
 }
-
-type MyStaticBoxProps = Omit<BoxProps, "args" | "position" | "type"> & {
-  args: Exclude<BoxProps["args"], undefined>;
-  position: Exclude<BoxProps["position"], undefined>;
-  type: "Static";
-};
-
-const MyStaticBox: FC<MyStaticBoxProps> = ({ args, position, ...rest }) => {
-  const [ref, api] = useBox(
-    () => ({
-      args,
-      position,
-      ...rest,
-    }),
-    useRef<Mesh>(null)
-  );
-
-  useFrame(({ clock }) => {
-    const t = clock.getElapsedTime();
-    const [xx, yy, zz] = position;
-    const length = Math.sqrt(xx * xx + zz * zz);
-    const x = length * Math.sin(t);
-    const y = yy;
-    const z = length * Math.cos(t);
-    api.position.set(x, y, z);
-  });
-
-  return (
-    <Box ref={ref} scale={args}>
-      <meshStandardMaterial></meshStandardMaterial>
-    </Box>
-  );
-};
-
-type MyBoxProps = BoxProps;
-
-const MyBox: FC<MyBoxProps> = ({ args, ...rest }) => {
-  const [ref] = useBox(
-    () => ({
-      args,
-      ...rest,
-    }),
-    useRef<Mesh>(null)
-  );
-
-  return (
-    <Box ref={ref} scale={args}>
-      <meshStandardMaterial></meshStandardMaterial>
-    </Box>
-  );
-};
-
-type MyPlaneProps = PlaneProps & Pick<MeshProps, "scale">;
-
-const MyPlane: FC<MyPlaneProps> = ({ scale, ...rest }) => {
-  const [ref] = usePlane(
-    () => ({
-      ...rest,
-    }),
-    useRef<Mesh>(null)
-  );
-
-  return (
-    <Plane ref={ref} scale={scale}>
-      <meshStandardMaterial></meshStandardMaterial>
-    </Plane>
-  );
-};
