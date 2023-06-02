@@ -3,6 +3,7 @@
 import { Box, Cylinder, OrbitControls, Plane } from "@react-three/drei";
 import { Canvas } from "@react-three/fiber";
 import { ChangeEvent, useState } from "react";
+import { Matrix4 } from "three";
 
 export default function Home() {
   const [controller, setController] = useState({
@@ -34,6 +35,13 @@ export default function Home() {
     </div>
   );
 
+  const matrixController = new Matrix4()
+    .makeTranslation(controller.positionX, 0, controller.positionZ)
+    .multiply(new Matrix4().makeRotationY((controller.axis0 * Math.PI) / 180));
+
+  const matrixCylinder = new Matrix4().makeTranslation(0, 10, 0);
+  const matrixBox = new Matrix4().makeTranslation(15, 11, 0);
+
   return (
     <main className="container mx-auto">
       <h1 className="text-4xl mt-4 mb-4">Robot arm game</h1>
@@ -54,17 +62,20 @@ export default function Home() {
         <pointLight position={[100, 200, 100]} intensity={0.8}></pointLight>
         <ambientLight intensity={0.1}></ambientLight>
         <OrbitControls></OrbitControls>
-        <group
-          position={[controller.positionX, 0, controller.positionZ]}
-          rotation={[0, (controller.axis0 * Math.PI) / 180, 0]}
+        <Cylinder
+          args={[10, 10, 20, 12]}
+          matrixAutoUpdate={false}
+          matrix={matrixController.clone().multiply(matrixCylinder)}
         >
-          <Cylinder args={[10, 10, 20, 12]} position={[0, 10, 0]}>
-            <meshStandardMaterial></meshStandardMaterial>
-          </Cylinder>
-          <Box args={[20, 4, 10]} position={[15, 11, 0]}>
-            <meshStandardMaterial></meshStandardMaterial>
-          </Box>
-        </group>
+          <meshStandardMaterial></meshStandardMaterial>
+        </Cylinder>
+        <Box
+          args={[20, 4, 10]}
+          matrixAutoUpdate={false}
+          matrix={matrixController.clone().multiply(matrixBox)}
+        >
+          <meshStandardMaterial></meshStandardMaterial>
+        </Box>
         <Plane args={[200, 200]} rotation={[-Math.PI / 2, 0, 0]}>
           <meshStandardMaterial color={"#888"}></meshStandardMaterial>
         </Plane>
