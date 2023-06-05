@@ -1,9 +1,26 @@
 "use client";
 
+import {
+  CylinderProps,
+  Physics,
+  Triplet,
+  useBox,
+  useCylinder,
+  usePlane,
+} from "@react-three/cannon";
 import { Box, Cylinder, OrbitControls, Plane } from "@react-three/drei";
-import { Canvas } from "@react-three/fiber";
-import { ChangeEvent, useState } from "react";
-import { Matrix4 } from "three";
+import {
+  BoxBufferGeometryProps,
+  BoxGeometryProps,
+  Canvas,
+  CylinderBufferGeometryProps,
+  CylinderGeometryProps,
+  MeshProps,
+  PlaneGeometryProps,
+  useFrame,
+} from "@react-three/fiber";
+import { ChangeEvent, FC, useEffect, useRef, useState } from "react";
+import { Euler, Matrix4, Mesh, Quaternion, Vector3 } from "three";
 
 export default function Home() {
   const [controller, setController] = useState({
@@ -39,8 +56,20 @@ export default function Home() {
     .makeTranslation(controller.positionX, 0, controller.positionZ)
     .multiply(new Matrix4().makeRotationY((controller.axis0 * Math.PI) / 180));
 
-  const matrixCylinder = new Matrix4().makeTranslation(0, 10, 0);
-  const matrixBox = new Matrix4().makeTranslation(15, 11, 0);
+  const matrixLocalCylinder = new Matrix4().makeTranslation(0, 10, 0);
+  const matrixLocalBox = new Matrix4().makeTranslation(15, 11, 0);
+
+  const matrixCylinder = matrixController.clone().multiply(matrixLocalCylinder);
+  const matrixBox = matrixController.clone().multiply(matrixLocalBox);
+
+  const positionCylinder = new Vector3();
+  const positionBox = new Vector3();
+
+  const quaternionCylinder = new Quaternion();
+  const quaternionBox = new Quaternion();
+
+  matrixCylinder.decompose(positionCylinder, quaternionCylinder, new Vector3());
+  matrixBox.decompose(positionBox, quaternionBox, new Vector3());
 
   return (
     <main className="container mx-auto">
@@ -59,27 +88,164 @@ export default function Home() {
           position: [50, 50, 50],
         }}
       >
-        <pointLight position={[100, 200, 100]} intensity={0.8}></pointLight>
-        <ambientLight intensity={0.1}></ambientLight>
-        <OrbitControls></OrbitControls>
-        <Cylinder
-          args={[10, 10, 20, 12]}
-          matrixAutoUpdate={false}
-          matrix={matrixController.clone().multiply(matrixCylinder)}
-        >
-          <meshStandardMaterial></meshStandardMaterial>
-        </Cylinder>
-        <Box
-          args={[20, 4, 10]}
-          matrixAutoUpdate={false}
-          matrix={matrixController.clone().multiply(matrixBox)}
-        >
-          <meshStandardMaterial></meshStandardMaterial>
-        </Box>
-        <Plane args={[200, 200]} rotation={[-Math.PI / 2, 0, 0]}>
-          <meshStandardMaterial color={"#888"}></meshStandardMaterial>
-        </Plane>
+        <Physics gravity={[0, -98.1, 0]}>
+          <pointLight position={[100, 200, 100]} intensity={0.8}></pointLight>
+          <ambientLight intensity={0.1}></ambientLight>
+          <OrbitControls></OrbitControls>
+          <MyPlane args={[200, 200]} rotation={[-Math.PI / 2, 0, 0]}>
+            <meshStandardMaterial color={"#888"}></meshStandardMaterial>
+          </MyPlane>
+          <MyCylinder
+            args={[10, 10, 20, 12]}
+            position={positionCylinder}
+            rotation={new Euler().setFromQuaternion(quaternionCylinder)}
+          >
+            <meshStandardMaterial></meshStandardMaterial>
+          </MyCylinder>
+          <MyBox
+            args={[20, 4, 10]}
+            position={positionBox}
+            rotation={new Euler().setFromQuaternion(quaternionBox)}
+          >
+            <meshStandardMaterial></meshStandardMaterial>
+          </MyBox>
+          {[...Array(5)].map((_, i) => (
+            <MyDynamicBox
+              key={i}
+              args={[20, 20, 20]}
+              position={[50, 15 + 30 * i, 0]}
+              mass={0.1}
+            >
+              <meshStandardMaterial></meshStandardMaterial>
+            </MyDynamicBox>
+          ))}
+        </Physics>
       </Canvas>
     </main>
   );
 }
+
+type MyDynamicBoxProps = Omit<MeshProps, "args" | "position"> & {
+  args: Triplet;
+  position: Triplet;
+  mass: number;
+};
+
+const MyDynamicBox: FC<MyDynamicBoxProps> = ({
+  args,
+  position,
+  mass,
+  children,
+  ...rest
+}) => {
+  const [ref, api] = useBox(
+    () => ({
+      args,
+      position,
+      mass,
+    }),
+    useRef<Mesh>(null)
+  );
+
+  return (
+    <Box ref={ref} args={args}>
+      {children}
+    </Box>
+  );
+};
+
+type MyPlaneProps = Omit<MeshProps, "args" | "rotation"> & {
+  args: PlaneGeometryProps["args"];
+  rotation: Triplet;
+};
+
+const MyPlane: FC<MyPlaneProps> = ({ args, rotation, children }) => {
+  const [ref] = usePlane(
+    () => ({
+      rotation,
+    }),
+    useRef<Mesh>(null)
+  );
+
+  return (
+    <Plane ref={ref} args={args}>
+      {children}
+    </Plane>
+  );
+};
+
+type MyCylinderProps = Omit<MeshProps, "args" | "position" | "rotation"> & {
+  args: CylinderBufferGeometryProps["args"];
+  position: Vector3;
+  rotation: Euler;
+};
+
+const MyCylinder: FC<MyCylinderProps> = ({
+  args,
+  position,
+  rotation,
+  children,
+  ...rest
+}) => {
+  const [ref, api] = useCylinder(
+    () => ({
+      args,
+      position: [position.x, position.y, position.z],
+      rotation: [rotation.x, rotation.y, rotation.z],
+      type: "Static",
+    }),
+    useRef<Mesh>(null)
+  );
+
+  useEffect(() => {
+    api.position.copy(position);
+  }, [api.position, position]);
+
+  useEffect(() => {
+    api.rotation.copy(rotation);
+  }, [api.rotation, rotation]);
+
+  return (
+    <Cylinder ref={ref} args={args} {...rest}>
+      {children}
+    </Cylinder>
+  );
+};
+
+type MyBoxProps = Omit<MeshProps, "args" | "position" | "rotation"> & {
+  args: Triplet;
+  position: Vector3;
+  rotation: Euler;
+};
+
+const MyBox: FC<MyBoxProps> = ({
+  args,
+  position,
+  rotation,
+  children,
+  ...rest
+}) => {
+  const [ref, api] = useBox(
+    () => ({
+      args,
+      position: [position.x, position.y, position.z],
+      rotation: [rotation.x, rotation.y, rotation.z],
+      type: "Static",
+    }),
+    useRef<Mesh>(null)
+  );
+
+  useEffect(() => {
+    api.position.copy(position);
+  }, [api.position, position]);
+
+  useEffect(() => {
+    api.rotation.copy(rotation);
+  }, [api.rotation, rotation]);
+
+  return (
+    <Box ref={ref} args={args} {...rest}>
+      {children}
+    </Box>
+  );
+};
